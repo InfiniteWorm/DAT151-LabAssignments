@@ -10,4 +10,5 @@ import CPP.Print
 import CPP.ErrM
 
 interpret :: Program -> IO ()
-interpret p = putStrLn "no interpreter yet"
+
+interpret p = putStrLn "Type checker has no errors. No interpreter yet"
