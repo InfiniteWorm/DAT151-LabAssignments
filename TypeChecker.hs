@@ -83,7 +83,15 @@ checkStm stm = case stm of
     _t <- inferExp e
     return ()
   SDecls t ids -> do
-    newVar id t
+    unless (t/=Type_void) $ throwError $ "Variable declaration cannot have Void as the type"
+    forM_ ids $ \id -> do
+      newVar id t
+    return ()
+  SWhile exp _ -> do
+    checkExp exp Type_bool
+    return ()
+  SIfElse exp _ _ -> do
+    checkExp exp Type_bool
     return ()
   s -> nyi s
 
@@ -105,6 +113,9 @@ inferExp exp = case exp of
   EDiv e1 e2 -> do
     t <- inferBin [Type_int, Type_double] e1 e2
     return t
+  EEq e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
   e@(EApp f es) -> do
     sig <- ask
     case Map.lookup f sig of
@@ -118,13 +129,23 @@ inferExp exp = case exp of
   
 inferBin :: [Type] -> Exp -> Exp -> TC Type
 inferBin types e1 e2 = do
-  typ <- inferExp e1
-  if elem typ types
+  t <- inferExp e1
+  if elem t types
    then do
-     checkExp e2 typ
-     return typ
+     checkExp e2 t
+     return t
    else 
      throwError $ "wrong type of expression " ++ printTree e1
+
+inferBool :: [Type] -> Exp -> Exp -> TC Type
+inferBool types e1 e2 = do
+  t <- inferExp e1
+  if elem t types
+    then do
+      checkExp e2 t
+      return Type_bool
+    else
+      throwError $ "wrong type of expression " ++ printTree e1
   
 checkExp :: Exp -> Type -> TC ()
 checkExp e t = do
