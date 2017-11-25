@@ -93,7 +93,21 @@ checkStm stm = case stm of
   SIfElse exp _ _ -> do
     checkExp exp Type_bool
     return ()
-  s -> nyi s
+  SInit t id exp -> do
+    checkExp exp t
+    unless (t/=Type_void) $ throwError $ "Variable declaration cannot have Void as the type"
+    newVar id t
+    return ()
+  SReturn exp -> do
+    t <- inferExp exp
+    t' <- gets (cxtReturnType)
+    unless (t/=t') $ throwError $ "return type mismatch"
+    return ()
+  SBlock stms -> do
+    t <- gets (cxtReturnType)
+    put $ Cxt t [Map.empty]
+    checkStms stms
+    return ()
 
 inferExp :: Exp -> TC Type
 inferExp exp = case exp of
@@ -116,6 +130,54 @@ inferExp exp = case exp of
   EEq e1 e2 -> do
     t <- inferBool [Type_int, Type_double] e1 e2
     return t
+  ENEq e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  ELt e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  EGt e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  ELtEq e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  EGtEq e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  EAnd e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  EOr e1 e2 -> do
+    t <- inferBool [Type_int, Type_double] e1 e2
+    return t
+  EId id -> do
+    t <- getId id
+    return t
+  EPostIncr id -> do
+    t <- getId id 
+    if elem t [Type_int,Type_double]
+      then return t
+      else throwError $ "Expected type double or int, got type " ++ printTree t
+  EPostDecr id -> do
+    t <- getId id 
+    if elem t [Type_int,Type_double]
+      then return t
+      else throwError $ "Expected type double or int, got type " ++ printTree t
+  EPreIncr id -> do
+    t <- getId id 
+    if elem t [Type_int,Type_double]
+      then return t
+      else throwError $ "Expected type double or int, got type " ++ printTree t
+  EPreDecr id -> do
+    t <- getId id 
+    if elem t [Type_int,Type_double]
+      then return t
+      else throwError $ "Expected type double or int, got type " ++ printTree t
+  EAss id exp -> do
+    t <- getId id
+    checkExp exp t
+    return t
   e@(EApp f es) -> do
     sig <- ask
     case Map.lookup f sig of
@@ -125,7 +187,6 @@ inferExp exp = case exp of
       let checkArg e (ADecl t _) = checkExp e t
       zipWithM_ checkArg es args
       return t
-  e -> nyi e
   
 inferBin :: [Type] -> Exp -> Exp -> TC Type
 inferBin types e1 e2 = do
@@ -151,7 +212,14 @@ checkExp :: Exp -> Type -> TC ()
 checkExp e t = do
   t' <- inferExp e
   unless (t==t') $ throwError $ "Expected type " ++ printTree t ++ ", got type " ++ printTree t'
- 
+
+getId :: Id -> TC Type
+getId x = do
+  block <- gets (head . cxtBlocks)
+  case Map.lookup x block of
+    Nothing -> throwError $ "variable undefined : " ++ printTree x
+    Just t -> return t
+
 newVar :: Id -> Type -> TC ()
 newVar x t = do
   block <- gets (head . cxtBlocks)
