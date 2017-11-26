@@ -80,18 +80,21 @@ checkStms stms = mapM_ checkStm stms
 checkStm :: Stm -> TC ()
 checkStm stm = case stm of
   SExp e -> do
-    _t <- inferExp e
+    t <- inferExp e
     return ()
   SDecls t ids -> do
     unless (t/=Type_void) $ throwError $ "Variable declaration cannot have Void as the type"
     forM_ ids $ \id -> do
       newVar id t
     return ()
-  SWhile exp _ -> do
+  SWhile exp stms -> do
     checkExp exp Type_bool
+    checkStm stm
     return ()
-  SIfElse exp _ _ -> do
+  SIfElse exp stms1 stms2 -> do
     checkExp exp Type_bool
+    checkStm stms1
+    checkStm stms2
     return ()
   SInit t id exp -> do
     checkExp exp t
@@ -101,12 +104,17 @@ checkStm stm = case stm of
   SReturn exp -> do
     t <- inferExp exp
     t' <- gets (cxtReturnType)
-    unless (t/=t') $ throwError $ "return type mismatch"
+    unless (t==t') $ throwError $ "return type mismatch"
     return ()
   SBlock stms -> do
     t <- gets (cxtReturnType)
+    block <- gets (cxtBlocks)
+    --push new block here
     put $ Cxt t [Map.empty]
+    --check statements
     checkStms stms
+    --pop new block here
+    put $ Cxt t block
     return ()
 
 inferExp :: Exp -> TC Type
@@ -155,25 +163,17 @@ inferExp exp = case exp of
     t <- getId id
     return t
   EPostIncr id -> do
-    t <- getId id 
-    if elem t [Type_int,Type_double]
-      then return t
-      else throwError $ "Expected type double or int, got type " ++ printTree t
+    t <- checkId id [Type_int,Type_double]
+    return t
   EPostDecr id -> do
-    t <- getId id 
-    if elem t [Type_int,Type_double]
-      then return t
-      else throwError $ "Expected type double or int, got type " ++ printTree t
+    t <- checkId id [Type_int,Type_double]
+    return t
   EPreIncr id -> do
-    t <- getId id 
-    if elem t [Type_int,Type_double]
-      then return t
-      else throwError $ "Expected type double or int, got type " ++ printTree t
+    t <- checkId id [Type_int,Type_double]
+    return t
   EPreDecr id -> do
-    t <- getId id 
-    if elem t [Type_int,Type_double]
-      then return t
-      else throwError $ "Expected type double or int, got type " ++ printTree t
+    t <- checkId id [Type_int,Type_double]
+    return t
   EAss id exp -> do
     t <- getId id
     checkExp exp t
@@ -219,6 +219,15 @@ getId x = do
   case Map.lookup x block of
     Nothing -> throwError $ "variable undefined : " ++ printTree x
     Just t -> return t
+
+checkId :: Id -> [Type] -> TC Type
+checkId x types = do
+  t <- getId x
+  if elem t types 
+    then do
+      return t
+  else
+    throwError $ "wrong type of variable : " ++ printTree x
 
 newVar :: Id -> Type -> TC ()
 newVar x t = do
