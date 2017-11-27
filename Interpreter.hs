@@ -34,6 +34,11 @@ data Val
     | VDouble Double
   deriving (Eq, Ord, Show, Read)
 
+  -- När man går igenom ett program och typecheckar kommer man ihåg variablernas typer, 
+ltVal :: Val -> Val -> Val
+ltVal (VInt x) (VInt y) = VBool (x < y)
+ltVal (VDouble x) (VDouble y) = VBool (x < y)
+
 -- | Result
 data Res
   = RRet Val
@@ -77,35 +82,32 @@ evalStm stm = case stm of
   s -> fail $ "Not yet implemented: evalStm for " ++ show s
 
 
-LtVal :: Val -> Val -> Val
-LtVal (Vint x) (Vint y) = VBool (x < y)
-LtVal (VDouble x) (VDouble y) = VBool (x < y)
 
-LtEqVal :: Val -> Val -> Val
-LtEqVal (VInt x) (VInt y) = VBool (x <= y)
-LtEqVal (VDouble x) (VDouble y) = VBool (x <= y)
+ltEqVal :: Val -> Val -> Val
+ltEqVal (VInt x) (VInt y) = VBool (x <= y)
+ltEqVal (VDouble x) (VDouble y) = VBool (x <= y)
 
-GtVal :: Val -> Val -> Val
-GtVal (VInt x) (VInt y) = VBool (x > y)
-GtVal (VDouble x) (VDouble y) = VBool (x > y)
+gtVal :: Val -> Val -> Val
+gtVal (VInt x) (VInt y) = VBool (x > y)
+gtVal (VDouble x) (VDouble y) = VBool (x > y)
 
-GtEqVal :: Val -> Val -> Val
-GtEqVal (VInt x) (VInt y) = VBool (x >= y)
-GtEqVal (VDouble x) (VDouble y) = VBool (x >= y)
+gtEqVal :: Val -> Val -> Val
+gtEqVal (VInt x) (VInt y) = VBool (x >= y)
+gtEqVal (VDouble x) (VDouble y) = VBool (x >= y)
 
-EqVal :: Val -> Val -> Val
-EqVal (VInt x) (VInt y) = VBool (x == y)
-EqVal (VDouble x) (VDouble y) = VBool (x == y)
+eqVal :: Val -> Val -> Val
+eqVal (VInt x) (VInt y) = VBool (x == y)
+eqVal (VDouble x) (VDouble y) = VBool (x == y)
 
-NeqVal :: Val -> Val -> Val
-NeqVal (VInt x) (VInt y) = VBool (x /= y)
-NeqVal (VDouble x) (VDouble y) = VBool (x /= y)
+neqVal :: Val -> Val -> Val
+neqVal (VInt x) (VInt y) = VBool (x /= y)
+neqVal (VDouble x) (VDouble y) = VBool (x /= y)
 
-AndVal :: Val -> Val -> Val
-AndVal (VBool x) (VBool y) = VBool (x && y)
+andVal :: Val -> Val -> Val
+andVal (VBool x) (VBool y) = VBool (x && y)
 
-OrVal :: Val -> Val -> Val
-OrVal (VBool x) (VBool y) = VBool (x | y)
+orVal :: Val -> Val -> Val
+orVal (VBool x) (VBool y) = VBool (x || y)
 
 multiVal :: Val -> Val -> Val
 multiVal (VInt x) (VInt y) = VInt (x*y)
@@ -151,7 +153,7 @@ evalExp e = case e of
     u <- evalExp e1
     v <- evalExp e2
     return (EqVal u v)
-  ENeq e1 e2 -> do
+  ENEq e1 e2 -> do
     u <- evalExp e1
     v <- evalExp e2
     return (NeqVal u v)
