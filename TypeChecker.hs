@@ -36,6 +36,9 @@ data Cxt = Cxt
   }
 type Block = Map Id Type
 
+
+
+
 typecheck :: Program -> Err ()
 typecheck (PDefs defs) = do
   let sig = Map.fromList sigPairs
@@ -77,6 +80,10 @@ checkArgs args = mapM_ (\ (ADecl t x) -> newVar x t) args
 checkStms :: [Stm] -> TC ()
 checkStms stms = mapM_ checkStm stms
 
+--newBlock :: [Block] -> [Block] -> [Block]
+--newBlock [] ys = []:ys
+--newBlock (x:xs) ys = x : (newBlock xs ys)
+
 checkStm :: Stm -> TC ()
 checkStm stm = case stm of
   SExp e -> do
@@ -108,13 +115,17 @@ checkStm stm = case stm of
     return ()
   SBlock stms -> do
     t <- gets (cxtReturnType)
-    block <- gets (cxtBlocks)
+    --block <- gets (head . cxtBlocks)
+    --let block = gets (head.cxtBlocks)
+    --    block' = block List.\\ block
+
     --push new block here
-    put $ Cxt t [Map.empty]
+    --newBlock block' block
+    --modify $ \ cxt -> cxt { cxtBlocks = block':cxtBlocks}
     --check statements
     checkStms stms
     --pop new block here
-    put $ Cxt t block
+    --modify $ \ cxt -> cxt { cxtBlocks = tail(cxtBlocks cxt)} 
     return ()
 
 inferExp :: Exp -> TC Type
