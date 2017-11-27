@@ -84,6 +84,8 @@ checkStms stms = mapM_ checkStm stms
 --newBlock [] ys = []:ys
 --newBlock (x:xs) ys = x : (newBlock xs ys)
 
+--create a delete block opposite of new block.
+
 checkStm :: Stm -> TC ()
 checkStm stm = case stm of
   SExp e -> do
@@ -113,8 +115,11 @@ checkStm stm = case stm of
     t' <- gets (cxtReturnType)
     unless (t==t') $ throwError $ "return type mismatch"
     return ()
-  SBlock stms -> do
-    t <- gets (cxtReturnType)
+  SBlock stms -> do -- Scope = ctx = block 
+
+  --anropa ny block, kör statements, rensa stack (ta bort det block(delete block) man la dit i början) look for deleteblock
+  --inbuilt recursion takes care of nestled blocks.  
+  t <- gets (cxtReturnType)
     --block <- gets (head . cxtBlocks)
     --let block = gets (head.cxtBlocks)
     --    block' = block List.\\ block
