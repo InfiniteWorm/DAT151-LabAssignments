@@ -1,7 +1,7 @@
-# Makefile for PLT lab 2
+# Makefile for PLT lab 3
 
-lab2: lab2.hs TypeChecker.hs Interpreter.hs CPP/Test
-	ghc --make lab2.hs -o lab2
+lab3: lab3.hs TypeChecker.hs Compiler.hs CPP/Test
+	ghc --make lab3.hs -o lab3
 
 CPP/Test.hs CPP/Lex.x CPP/Layout.hs CPP/Par.y : CPP.cf
 	bnfc --haskell -d $<
