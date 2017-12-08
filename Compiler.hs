@@ -47,6 +47,7 @@ data FunType = FunType Type [Type]
 data St = St
     {
         cx              :: [BlockC],
+        retType         :: Type,
         limitLocals     :: Int,
         nextAddr        :: Int,
         currentStack    :: Int,
@@ -61,7 +62,9 @@ type BlockC = Map Id Addr
     } -}
 
 newtype Label = L { theLabel :: Int }
-  deriving (Eq, Enum)
+  deriving (Eq, Enum, Show)
+
+{- type Label = Int -}
 
 initSt :: St
 initSt = St {
@@ -70,7 +73,8 @@ initSt = St {
     nextAddr = 0,
     currentStack = 0,
     limitStack = 0,
-    nextLabel = L 0
+    nextLabel = L 0,
+    retType = Type_void
 }
 
 -- | Empty state. 
@@ -95,6 +99,19 @@ data Code
     | Div Type
     | Mul Type
     | Bipush Integer
+    | IfLt Label
+    | IfLe Label
+    | IfGt Label
+    | IfGe Label
+    | IfEq Label
+    | IfNeq Label
+    | IfEqZ Label
+    | Goto Label
+    | Lbl Label
+    | Dup
+    | And Type
+    | Or Type
+
 
 ------------------------------------------
 class ToJVM a where
@@ -117,7 +134,8 @@ instance ToJVM Label where
 
 builtIn :: [(Id, Fun)]
 builtIn = 
-    [ (Id "printInt", Fun (Id "Runtime/printInt") $ FunType Type_void [Type_int])
+    [ (Id "printInt", Fun (Id "Runtime/printInt") $ FunType Type_void [Type_int]),
+      (Id "readInt", Fun (Id "Runtime/readInt") $ FunType Type_void [])
     ]
 
 funType :: Def -> FunType
@@ -177,14 +195,27 @@ instance ToJVM Code where
         Store t n -> prefix t ++ "store " ++ show n
         Load t n -> prefix t  ++ "load " ++ show n
         Pop t -> "pop"
+        Dup -> "dup"
         Return t -> prefix t ++ "return"
         Call f -> "invokestatic" ++ toJVM f
         IConst i -> "ldc " ++ show i
+        Inc t a i -> prefix t ++ "inc " ++ show a ++ " " ++ show i
         Add t -> prefix t ++ "add"
         Sub t -> prefix t ++ "sub"
         Div t -> prefix t ++ "div"
         Mul t -> prefix t ++ "mul"
         Bipush i -> "bipush " ++ show i
+        IfEq lbl -> "if_icmpeq " ++ toJVM lbl
+        IfNeq lbl -> "if_icmne " ++ toJVM lbl
+        IfGe lbl -> "if_icmpge " ++ toJVM lbl
+        IfLe lbl -> "if_icmple " ++ toJVM lbl
+        IfGt lbl -> "if_icmpgt " ++ toJVM lbl
+        IfLt lbl -> "if_icmplt " ++ toJVM lbl
+        IfEqZ lbl -> "ifeq " ++ toJVM lbl
+        Goto lbl -> "goto " ++ toJVM lbl
+        And t -> prefix t ++ "and"
+        Or t -> prefix t ++ "or"
+        Lbl lbl -> toJVM lbl ++  ":" 
 
 emit :: Code -> Compile ()
 
@@ -206,6 +237,18 @@ emit c = do
         Div t -> decStack t
         Mul t -> decStack t
         Bipush _ -> incStack Type_int
+        IfEq _ -> decStack Type_int
+        IfNeq _ -> decStack Type_int
+        IfGe _ -> decStack Type_int
+        IfGt _ -> decStack Type_int
+        IfLe _ -> decStack Type_int
+        IfLt _ -> decStack Type_int
+        IfEqZ _ -> decStack Type_int
+        Dup -> incStack Type_int
+        And _ -> decStack Type_int
+        Or _ -> decStack Type_int
+        Lbl _ -> incStack Type_void
+        Goto _ -> incStack Type_void
 
 ------------------
 --add limitlocal every time a variable is declared
@@ -222,6 +265,12 @@ newVar x t = do
     modify $ \cxt -> cxt {cx = block' : tailblock,limitLocals = newlocal, nextAddr = nextAddress}
     return ()
 
+newLabel :: Label -> Compile ()
+newLabel (L {theLabel = tl}) = do
+    let tl' = tl + 1
+    modify $ \cxt -> cxt {nextLabel = L tl'} 
+
+
 -- | Return address of a variable.
 lookupVar :: Id -> [BlockC] -> Compile Addr
 lookupVar id [] = return 100;
@@ -232,7 +281,7 @@ lookupVar id block = do
             let tailbl = tail(block)
             lookupVar id tailbl
         Just a -> return a
-        
+
 
 -- | Not yet implemented.
 
@@ -309,6 +358,9 @@ compileFun def@(DFun t f args ss) = do
     -- prepare environment
     lab <- gets nextLabel
     put initSt{ nextLabel = lab }
+
+    put initSt { retType = t}
+
     newBlock
     mapM_ (\ (ADecl t' x) -> newVar x t') args
 
@@ -346,12 +398,27 @@ compileStm s = do
             --compile the exp
             compileExp exp
             --store & load to the declared variable
-            --need the address
             block <- gets(cx)
             a <- lookupVar id block
             emit(Store t a)
             emit(Load t a)
             return ()
+        SReturn exp -> do
+            compileExp exp           
+            rType <- gets(retType) 
+            emit (Return rType)
+            return ()
+        SWhile exp stm -> do
+            init <- gets nextLabel
+            newLabel init
+            lb1 <- gets nextLabel
+            emit(Lbl init)
+            compileExp exp
+            emit(IfEqZ lb1)
+            compileStm stm
+            emit(Goto init)
+            emit(Lbl lb1)
+        --need to do : SWhile, SBlock, SIfElse
         s -> nyi s
 
 compileExp :: Exp -> Compile ()
@@ -366,6 +433,10 @@ compileExp e = do
         EInt i -> do
             emit (IConst i)
             return ()
+        EId id -> do
+            block <- gets(cx)
+            a <- lookupVar id block
+            emit (Load Type_int a)
         EPlus e1 e2 -> do
             compileExp (e1)
             compileExp (e2)
@@ -382,14 +453,30 @@ compileExp e = do
             compileExp (e1)
             compileExp (e2)
             emit (Div Type_int)
+        EAss id e1 -> do
+            compileExp e1
+            block <- gets(cx)
+            a <- lookupVar id block
+            emit(Store Type_int a)
+            emit(Load Type_int a)
         ELt e1 e2 -> do
+            label <- gets nextLabel
+            newLabel label
+
             emit(Bipush 1)
             compileExp (e1)
             compileExp (e2)
-            --emit if_icmplt missing
-            --create / generate new label
-            --declare new label
-            --emit labels
+
+            label' <- gets nextLabel
+
+            emit(IfLt label')
             emit (Pop Type_int)
             emit (Bipush 0)
+            emit (Lbl label')
+        EPreIncr id -> do
+            block <- gets(cx)
+            a <- lookupVar id block
+            emit (Load Type_int a)
+            emit (Inc Type_int a 1)
+        --Need to do : EApp, EPre/Post Inc/Decr, and E Lt/Gt/Le/Ge/And/Or
         e -> nyi e
