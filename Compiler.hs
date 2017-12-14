@@ -1,13 +1,3 @@
-{-
-1. Address for Variable Declaration? especially for the nested blocks later on in SBlock
-2. Slide 27, lecture 6. 
-    How to do Labels? In boolean operators it seems that we have to jump to a certain labels.
-    How to do that?
-3. Slide 17, lecture 6.
-    It says that if value is needed, then we need to store and load
-    How do we check that?
--}
-
 {-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
